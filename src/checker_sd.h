@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-typedef uint16_t sz_t;
+typedef uint32_t sz_t;
 
 typedef struct _sd_check_t {
   sz_t n, ne2, ne4;

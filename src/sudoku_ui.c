@@ -138,7 +138,7 @@ static const char *gets_result(const ui_sudoku_t *s) {
 static void update_cell(ui_sudoku_t *s, xybuf buf) {
   if(buf.val == -1)
     return;
-  assert(buf.val >= 0 && buf.val < s->ne2);
+  assert(buf.val >= 0 && buf.val <= s->ne2);
   uint8_t idx = buf.y * s->ne2 + buf.x;
   if(s->table[idx] != buf.val) {
     s->table[idx] = buf.val;

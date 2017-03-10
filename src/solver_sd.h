@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 typedef uint8_t val_t;
-typedef uint16_t sz_t;
+typedef uint32_t sz_t;
 
 typedef enum {
   INVALID,

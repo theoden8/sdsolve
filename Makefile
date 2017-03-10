@@ -1,5 +1,5 @@
 all :
-	$(MAKE) -C Practical3-C2
+	$(MAKE) -C src
 
 clean :
-	$(MAKE) -C Practical3-C2 clean
+	$(MAKE) -C src clean

@@ -6,7 +6,7 @@
 
 void scan_sudoku(sd_check_t *sd) {
   sz_t n;
-  scanf(" %hu", &n);
+  scanf(" %u", &n);
   *sd = alloc_sd(n);
   for(sz_t i = 0; i < sd->ne4; ++i) {
     int sc = scanf(" %d", &sd->board[i]);

@@ -1,19 +1,5 @@
 #!/usr/bin/env perl
-
-# this script helps to translate
-# the dot-number notation used
-# in downloaded sudoku data sets
-# into the notation specific to
-# this practical.
-
-use feature qw(say);
-
-print <STDOUT>, "3\n";
-for(my $i = 0; $i < 9; ++$i) {
-  for(my $j = 0; $j < 9; ++$j) {
-    my $c = getc(STDIN);
-    print <STDOUT>, (($c == '.') ? '0' : $c);
-    print <STDOUT>, " ";
-  }
-  print "\n";
-}
+use feature('say'); $_=<>,$n=int sqrt sqrt -1+length
+;say$n;$n*=2*$n;s/.\K(?=.)/ /sg;s/.{$n}\K(?=.)/\n/sg
+;for$c('A'..'Z'){$d = (ord$c)-(ord'A')+10,s/$c/$d/g;
+}s/\./0/g;print

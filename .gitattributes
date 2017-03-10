@@ -1,1 +1,4 @@
 test3s.zip filter=lfs diff=lfs merge=lfs -text
+src/archives/gen_puzzles filter=lfs diff=lfs merge=lfs -text
+src/archives/sudoku.txt filter=lfs diff=lfs merge=lfs -text
+src/archives/top1465 filter=lfs diff=lfs merge=lfs -text

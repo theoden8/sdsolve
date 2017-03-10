@@ -36,7 +36,7 @@ int dump_cell(const sudoku_t *s, sz_t pos) {
 // this function is only used for debugging purposes
 // dump the full information about a sudoku_t object
 void dump_sudoku(const sudoku_t *s) {
-  printf("n=%hu\nnn=%hu\ncellsize=%lu\nsize=%hu\nno_virts=%hu\n",
+  printf("n=%u\nnn=%u\ncellsize=%lu\nsize=%u\nno_virts=%u\n",
          s->n, s->n_e2, CELL_SIZE(s),
          s->size, s->no_virts);
   printf("\n");
@@ -237,6 +237,8 @@ val_t get_sudoku_rightmost_virt(const sudoku_t *s, sz_t pos) {
     mask &= ~(mask - 1);
     right = 8 * sizeof(char) * i + 1;
     while(mask >>= 1)++right;
+    if(right)
+      return right;
   }
   return right;
 }
@@ -279,7 +281,6 @@ bool is_defined_val(const sudoku_t *s, sz_t pos) {
 
 // used by the set_sudoku_val_d. separated for possible use of counters and asserts
 void set_last_byte_val(sudoku_t *s, sz_t pos, val_t x) {
-  assert(x != 0);
   s->table[get_pos_byte_idx(s, pos) + CELL_SIZE(s) - 1] = x;
 }
 

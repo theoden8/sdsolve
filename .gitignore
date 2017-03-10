@@ -3,5 +3,6 @@ sudoku_check
 sudoku_solver
 sudoku_advanced
 sudoku_ui
+sudoku_generator
 llmatrix
 nohup.out

@@ -37,8 +37,8 @@ nthreads=0
 test_dir() {
   dir=$1; shift
   [ -d "$dir" ] || {
-	echo "no such directory: $dir"
-	return 0
+    echo "no such directory: $dir"
+    return 0
   }
   for f in $dir/*; do
     [ "$nthreads" -ge "$maxthreads" ] && {
@@ -53,17 +53,31 @@ test_dir() {
   wait
 }
 
+get_time() {
+  program=$1; shift
+  input_file=$1; shift
+  gtime "--format=%E" $program < "$input_file" > /dev/null
+}
+
+print_time() {
+  program=$1; shift
+  input_file=$1; shift
+  get_time "$program" "$input_file" 2>&1 | tr '.' ':' | sed 's/:/ /g' | (
+    read -r m s ms
+    printf "%s.%s\t%s\n" "$((m * 60 + s))" "$ms" "$input_file"
+  )
+}
+
 main() {
   for f in $(find ../tests -name "*.in" | grep '[123]_' | grep -v "very_hard_1.in"); do
     echo "$f"
     run_test "$f"
   done
-  test_dir ./tests
-  test_dir ./test3_hard
-  test_dir ./test3_1465
-  test_dir ./test3_gen
-  echo
-  no_files=$(ls res/ | wc -l)
+  print_time "$adv" ../tests/3_sudoku_advanced_tests/very_hard/very_hard_1.in
+  for f in $(find ../tests -name "*.in" | grep 'seq-'); do
+    print_time "$adv" "$f"
+  done
+  no_files=$(find "$outfolder" -depth 1 | wc -l)
   [ "$no_files" -eq 0 ] && {
     echo "success"
   } || {

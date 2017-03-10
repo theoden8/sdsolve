@@ -4,11 +4,16 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// (CONSTRx(RxC))xN
+#define RIDX(C,R) ((C)*s->ne2 + (R))
+#define RVAL(C, R) s->r[RIDX(C, R)]
+
+// (RxCxN)xCONSTR
+#define CIDX(R, C) (((R) << 2) | (C))
+#define CVAL(R, C) s->c[CIDX(R, C)]
+
 typedef uint32_t sz_t;
 typedef uint8_t val_t;
-
-#define RIDX(C,R) ((C)*s->ne2 + (R))
-#define CIDX(R, C) ((R) << 2 | (C))
 
 typedef struct _sd_t {
   sz_t n, ne2, ne4;
