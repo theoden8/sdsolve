@@ -1,0 +1,7 @@
+*.o
+sudoku_check
+sudoku_solver
+sudoku_advanced
+sudoku_ui
+llmatrix
+nohup.out
