@@ -19,12 +19,21 @@ void seed_rng() {
   srand(seed),close(fp);
 }
 
-sdgen_t create_empty_table(sz_t n) {
-  sdgen_t s={.n=n,.ne2=n*n,.ne4=n*n*n*n,.table=malloc(sizeof(val_t)*n*n*n*n),.status=MULTIPLE,.no_vals=0};
-  assert(s.table!=NULL),memset(s.table,0x00,sizeof(val_t)*s.ne4);return s;
+void sd_init_diagonal_boxes(sdgen_t *s) {
+  assert(s->no_vals == 0);
+  for(sz_t i = 0; i < s->n; ++i) {
+    sz_t topleft = i * (s->n*s->ne2 + s->n);
+    s->table[topleft] = rand() % s->ne2 + 1;
+  }
 }
 
-void free_table(sdgen_t s){free(s.table);}
+sdgen_t sdgen_init(sz_t n) {
+  sdgen_t s={.n=n,.ne2=n*n,.ne4=n*n*n*n,.table=malloc(sizeof(val_t)*n*n*n*n),.status=MULTIPLE,.no_vals=0};
+  assert(s.table!=NULL),memset(s.table,0x00,sizeof(val_t)*s.ne4);
+  return s;
+}
+
+void sdgen_free(sdgen_t s){free(s.table);}
 
 int chrlen(int x){return(x<10)?1:1+chrlen(x/10);}
 void print_table(sdgen_t s) {
@@ -59,37 +68,65 @@ void set_random(sdgen_t *s) {
   /* printf("%lu\n", s->no_vals); */
 }
 
-void unset_random(sdgen_t *s) {
-  /* printf("%lu\n", s->no_vals); */
-  assert(s->no_vals != 0);
-  sz_t idx;val_t t;
-  do{idx=rand()%s->ne4;}while(s->table[idx]==0);t=s->table[idx],s->table[idx]=0;
-  solve(s);
-  assert(s->status!=INVALID);
-  if(s->status==MULTIPLE){s->table[idx]=t;return;}
+bool try_unset(sdgen_t *s, sz_t idx) {
+  val_t t=s->table[idx];
+  assert(t);
+  assert(s->no_vals);
+  s->table[idx]=0,solve(s),assert(s->status != INVALID);
+  if(s->status == MULTIPLE){s->table[idx]=t;return false;}
   --s->no_vals;
+  return true;
+}
+
+static void print_arr(sz_t *arr, sz_t len){
+  printf("len==%d\n", len);
+  for(sz_t i=0;i<len;++i)printf("%d ", arr[i]); putchar('\n');
+}
+static void ord_arr(sz_t *arr, sz_t len){for(sz_t i=0;i<len;++i)arr[i]=i;}
+static void shuffle_arr(sz_t *arr, sz_t len) {
+  for(sz_t i = 1; i < len; ++i) {
+    sz_t j = rand()%i;
+    sz_t tmp;if(i!=j)tmp=arr[i],arr[i]=arr[j],arr[j]=tmp;
+  }
+}
+static void shift_arr(sz_t *arr, sz_t idx, sz_t *len) {
+  for(sz_t i=idx; i<*len-1; ++i)
+    arr[i]=arr[i+1];
+  --*len;
 }
 
 main(int argc, char *argv[]) {
   if(argc != 2)return EXIT_FAILURE;
   seed_rng();
   sz_t n = atoi(argv[1]);
-  sdgen_t s = create_empty_table(n);
+  sdgen_t s = sdgen_init(n);
+  sd_init_diagonal_boxes(&s);
+  /* print_table(s); */
   long c;
   c=clock();
   while(s.no_vals < s.ne4/4){
     if(clock() - c > CLOCKS_PER_SEC * s.ne2)
       break;
     set_random(&s);
+    /* print_table(s); */
   }
   complete(&s);
-  c=clock();
-  for(sz_t i=0;i<s.ne4;++i) {
-    if(clock() - c > CLOCKS_PER_SEC * s.ne2)
-      break;
-    unset_random(&s);
-    //printf("..%d\t", s.ne4-i);
+  /* print_table(s); */
+  sz_t len = s.ne4;
+  sz_t arr[s.ne4];ord_arr(arr, len);
+  while(1) {
+    shuffle_arr(arr, len);
+    c=clock();
+    sz_t prev_len = len;
+    for(sz_t i=0;i<len;++i) {
+      assert(s.table[arr[i]]);
+      if(clock() - c > CLOCKS_PER_SEC * s.ne2)
+        goto endgen;
+      if(try_unset(&s, arr[i]))shift_arr(arr,i--,&len)/*,print_arr(arr,len),print_table(s)*/;
+    }
+    if(prev_len==len)goto endgen;
   }
+endgen:
   print_table(s);
-  free_table(s);
+  sdgen_free(s);
 }

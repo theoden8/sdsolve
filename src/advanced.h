@@ -15,11 +15,21 @@
 typedef uint32_t sz_t;
 typedef uint8_t val_t;
 
+struct _cov_t;
+struct _sol_t;
+
 typedef struct _sd_t {
+  // general
   sz_t n, ne2, ne4;
   val_t *table;
+  // constraint table
   sz_t w, h, wy;
   sz_t *r, *c;
+  // solver
+  sz_t no_hints;
+  struct _cov_t *cov;
+  struct _sol_t *soln;
+  val_t *tmp_table;
 } sd_t;
 
 typedef enum { ROWCOL, BOXNUM, ROWNUM, COLNUM, NO_CONSTR } CONSTRAINTS;
@@ -48,9 +58,9 @@ typedef struct _min_t {
 
 extern sz_t UNDEF_SIZE;
 
-static inline void sd_forward(const sd_t *s, cov_t *covered, sz_t r, sz_t c, min_t *m);
-static inline void sd_revert(const sd_t *s, cov_t *covered, sz_t r, sz_t c);
-static inline min_t sd_update(const sd_t *s, cov_t *covered, sz_t r, ACTION flag);
+static inline void sd_forward(const sd_t *s, sz_t r, sz_t c, min_t *m);
+static inline void sd_backtrack(const sd_t *s, sz_t r, sz_t c);
+static inline min_t sd_update(const sd_t *s, sz_t r, ACTION flag);
 RESULT solve_sd(sd_t *s);
 
 #endif

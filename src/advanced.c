@@ -16,12 +16,13 @@ sz_t UNDEF_SIZE = -1;
 
 sd_t *make_sd(sz_t n, val_t *table) {
 attributes:;
-  sd_t *s = malloc(sizeof(sd_t)); assert(s != NULL);
+  sd_t *s=malloc(sizeof(sd_t));assert(s != NULL);
   s->n = n;
   s->ne2 = n*n;
   s->ne4 = s->ne2 * s->ne2;
   s->table=malloc(sizeof(val_t)*s->ne4),assert(s->table!=NULL);
   memcpy(s->table, table, sizeof(val_t) * s->ne4);
+// constraint table
   s->w = s->ne4 * NO_CONSTR;
   s->h = s->ne4 * s->ne2;
 col:;
@@ -40,7 +41,7 @@ col:;
 row:;
   val_t mem[s->w];
   for(sz_t i=0;i<s->w;++i)mem[i]=0;
-  s->r = malloc(sizeof(sz_t)*s->w*s->ne2),assert(s->r!=NULL);
+  s->r=malloc(sizeof(sz_t)*s->w*s->ne2),assert(s->r!=NULL);
   for(sz_t r = 0; r < s->h; ++r) {
     for(sz_t c = 0; c < NO_CONSTR; ++c) {
       sz_t i = CVAL(r, c);
@@ -48,6 +49,30 @@ row:;
       RVAL(i,mem[i]) = r, ++mem[i];
     }
   }
+// solver
+cov:;
+  size_t
+    cov_header = sizeof(cov_t),
+    cov_row = sizeof(val_t)*s->h,
+    cov_col = sizeof(val_t)*s->w,
+    cov_colfail = sizeof(sz_t) * s->w;
+  s->cov=malloc(cov_header+cov_row+cov_col+cov_colfail),assert(s->cov != NULL);
+  void *first = (void *)s->cov + cov_header;
+  s->cov->row = first;
+  s->cov->col = first + cov_row;
+  s->cov->colfail = first + cov_row+cov_col;
+soln:;
+  size_t
+    soln_header = sizeof(sol_t),
+    soln_row = sizeof(sz_t) * s->ne4,
+    soln_col = sizeof(sz_t) * s->ne4;
+  s->soln=malloc(soln_header+soln_row+soln_col),assert(s->soln != NULL);
+  first = (void *)s->soln + soln_header;
+  s->soln->row = first;
+  s->soln->col = first + soln_row;
+tmp_table:;
+  s->tmp_table=malloc(sizeof(val_t)*s->ne4),assert(s->tmp_table != NULL);
+ret:;
   return s;
 }
 
@@ -105,77 +130,83 @@ void free_sd(sd_t *s) {
   free(s->table);
   free(s->r);
   free(s->c);
+  if(s->cov != NULL)
+    free(s->cov);
+  if(s->soln != NULL)
+    free(s->soln);
+  if(s->tmp_table != NULL)
+    free(s->tmp_table);
   free(s);
 }
 
-static void dump_covererd(const cov_t *pair, sz_t len1, sz_t len2) {
+static void dump_covererd(sd_t *s, sz_t len1, sz_t len2) {
   puts("covered");
-  printf("row: "); for(sz_t i=0;i<len1;++i)printf("%hhd ", pair->row[i]);putchar('\n');
-  printf("col: "); for(sz_t i=0;i<len2;++i)printf("%hhd ", pair->col[i]);putchar('\n');
+  printf("row: "); for(sz_t i=0;i<len1;++i)printf("%hhd ", s->cov->row[i]);putchar('\n');
+  printf("col: "); for(sz_t i=0;i<len2;++i)printf("%hhd ", s->cov->col[i]);putchar('\n');
 }
 
-static void dump_choice(const sol_t *pair, sz_t len1, sz_t len2) {
+static void dump_choice(sd_t *s, sz_t len1, sz_t len2) {
   puts("choice");
-  printf("row: "); for(sz_t i=0;i<len1;++i)printf("%d ", pair->row[i]);putchar('\n');
-  printf("col: "); for(sz_t i=0;i<len2;++i)printf("%d ", pair->col[i]);putchar('\n');
+  printf("row: "); for(sz_t i=0;i<len1;++i)printf("%d ", s->soln->row[i]);putchar('\n');
+  printf("col: "); for(sz_t i=0;i<len2;++i)printf("%d ", s->soln->col[i]);putchar('\n');
 }
 
-static inline min_t sd_update(const sd_t *s, cov_t *cov, sz_t r, ACTION flag) {
+static inline min_t sd_update(const sd_t *s, sz_t r, ACTION flag) {
   min_t m = {
     .min = MINUNDEF,
     .fail_rate = UNDEF_SIZE,
     .min_col = 0,
   };
   const static val_t LBIT = 1 << (8 * sizeof(val_t) - 1);
-  for(sz_t c = 0; c < NO_CONSTR; ++c)cov->col[CVAL(r, c)] ^= LBIT;
+  for(sz_t c = 0; c < NO_CONSTR; ++c)s->cov->col[CVAL(r, c)] ^= LBIT;
   for(sz_t c = 0; c < NO_CONSTR; ++c)
-    if(flag==FORWARD)sd_forward(s,cov,r,c,&m);else
-      sd_revert(s,cov,r,c);
+    if(flag==FORWARD)sd_forward(s,r,c,&m);else
+      sd_backtrack(s,r,c);
   return m;
 }
 
-static inline void sd_forward(const sd_t *s, cov_t *cov, sz_t r, sz_t c, min_t *m) {
+static inline void sd_forward(const sd_t *s, sz_t r, sz_t c, min_t *m) {
   assert(c < NO_CONSTR);
-  const sz_t cidx = CVAL(r, c);
-  assert(cidx < s->w);
+  const sz_t clm = CVAL(r, c);
+  assert(clm < s->w);
   for(sz_t ir = 0; ir < s->ne2; ++ir) {
-    sz_t rr = RVAL(cidx, ir);
+    sz_t rr = RVAL(clm, ir);
     assert(rr < s->h);
-    if(cov->row[rr]++ != 0)continue;
+    if(s->cov->row[rr]++ != 0)continue;
     for(sz_t ic = 0; ic < NO_CONSTR; ++ic) {
       sz_t cc = CVAL(rr, ic);
-      assert(cidx < s->w);
-      --cov->col[cc];
-      if(cov->col[cc] < m->min)
-        m->min=cov->col[cc],m->fail_rate=cov->colfail[cc],m->min_col=cc;
+      assert(clm < s->w);
+      if(--s->cov->col[cc] < m->min)
+        m->min=s->cov->col[cc],m->fail_rate=s->cov->colfail[cc],m->min_col=cc;
     }
   }
 }
 
-static inline void sd_revert(const sd_t *s, cov_t *cov, sz_t r, sz_t c) {
+static inline void sd_backtrack(const sd_t *s, sz_t r, sz_t c) {
   assert(c < NO_CONSTR);
-  sz_t cidx = CVAL(r, c);
-  assert(cidx < s->w);
+  sz_t clm = CVAL(r, c);
+  assert(clm < s->w);
   for(sz_t ir = 0; ir < s->ne2; ++ir) {
-    sz_t rr = RVAL(cidx, ir);
+    sz_t rr = RVAL(clm, ir);
     assert(rr < s->h);
-    --cov->row[rr];
-    assert(0 <= cov->row[rr] && cov->row[rr] <= NO_CONSTR);
-    if(cov->row[rr] != ROWCOL)continue;
+    --s->cov->row[rr];
+    assert(0 <= s->cov->row[rr] && s->cov->row[rr] <= NO_CONSTR);
+    if(s->cov->row[rr] != ROWCOL)continue;
     sz_t *it = &CVAL(rr, 0);
-    ++cov->col[it[ROWCOL]], ++cov->col[it[BOXNUM]],
-    ++cov->col[it[ROWNUM]], ++cov->col[it[COLNUM]];
+    ++s->cov->col[it[ROWCOL]], ++s->cov->col[it[BOXNUM]],
+    ++s->cov->col[it[ROWNUM]], ++s->cov->col[it[COLNUM]];
   }
 }
 
-static void dump_sd(sd_t *s, sol_t soln, int i) {
+static void dump_sd(const sd_t *s, int i) {
   static counter = 0;
+  if(!s){counter=0;return;}
   printf("[%d] dump sudoku\n", counter);
   val_t dump[s->ne4];
   for(int i=0;i<s->ne4;++i)dump[i]=0;
-  /* memcpy(dump, s->table, sizeof(val_t) * s->ne4); */
+  memcpy(dump, s->table, sizeof(val_t) * s->ne4);
   for(int j = 0; j < i; ++j) {
-    int r = RVAL(soln.col[j], soln.row[j]);
+    int r = RVAL(s->soln->col[j], s->soln->row[j]);
     dump[r / s->ne2] = r % s->ne2 + 1;
   }
   for(sz_t i = 0; i < s->ne2; ++i) {
@@ -209,34 +240,30 @@ static inline bool check_sd(sd_t *s) {
   return true;
 }
 
-RESULT solve_sd(sd_t *s) {
-  RESULT res = INVALID;
-  if(!check_sd(s))return res=INVALID;
-allocate:;
-  sz_t no_hints = 0;
-  cov_t cov = {
-    .row = alloca(sizeof(val_t) * s->h),
-    .col = alloca(sizeof(val_t) * s->w),
-    .colfail = alloca(sizeof(sz_t) * s->w),
-  };
-  for(sz_t i=0;i<s->h;++i)cov.row[i]=ROWCOL;
-  for(sz_t i=0;i<s->w;++i)cov.col[i]=s->ne2;
-  for(sz_t i=0;i<s->w;++i)cov.colfail[i]=0;
-  sol_t soln = {
-    .row = alloca(sizeof(sz_t) * s->ne4),
-    .col = alloca(sizeof(sz_t) * s->ne4),
-  };
-  val_t sdtable[s->ne4];
-forward_knowns:;
+static inline void sd_reset(sd_t *s) {
+  s->no_hints=0;
+  for(sz_t i=0;i<s->h;++i)s->cov->row[i]=ROWCOL;
+  for(sz_t i=0;i<s->w;++i)s->cov->col[i]=s->ne2;
+  for(sz_t i=0;i<s->w;++i)s->cov->colfail[i]=0;
+}
+
+static inline void sd_forward_knowns(sd_t *s) {
+  sd_reset(s);
   for(sz_t i = 0; i < s->ne4; ++i) {
     val_t t = s->table[i];
     if(t) {
-      sd_update(s, &cov, i * s->ne2 + t - 1, FORWARD);
-      ++no_hints;
+      sd_update(s, i * s->ne2 + t - 1, FORWARD);
+      ++s->no_hints;
     }
-    soln.row[i] = soln.col[i] = UNDEF_SIZE,
-      sdtable[i] = t;
+    s->soln->row[i] = s->soln->col[i] = UNDEF_SIZE, s->tmp_table[i] = t;
   }
+}
+
+RESULT solve_sd(sd_t *s) {
+  RESULT res = INVALID;
+  if(!check_sd(s))return res=INVALID;
+presetup:;
+  sd_forward_knowns(s);
   ACTION action = FORWARD;
   min_t m = {
     .min = MINUNDEF,
@@ -246,64 +273,65 @@ forward_knowns:;
 iterate_unknowns:;
   int i = 0;
   while(1) {
-    while(i >= 0 && i < s->ne4 - no_hints) {
+    while(i >= 0 && i < s->ne4 - s->no_hints) {
+      /* dump_sd(s, i); */
       if(action == FORWARD) {
-        soln.col[i] = m.min_col;
+        s->soln->col[i] = m.min_col;
         if(m.min > 1) {
           for(sz_t c = 0; c < s->w; ++c) {
-            if(cov.col[c] < m.min || (cov.col[c] == m.min && cov.colfail[c] > m.fail_rate)) {
-              m.min = cov.col[c];
-              m.fail_rate = cov.colfail[c];
+            if(s->cov->col[c] < m.min || (s->cov->col[c] == m.min && s->cov->colfail[c] > m.fail_rate)) {
+              m.min = s->cov->col[c];
+              m.fail_rate = s->cov->colfail[c];
               m.min_col = c;
-              soln.col[i] = c;
+              s->soln->col[i] = c;
               if(m.min < 2)break;
             }
           }
         } else if(m.min == MINUNDEF) {
-          ++cov.colfail[m.min_col],
+          ++s->cov->colfail[m.min_col],
           action = BACKTRACK,
-          soln.row[i] = UNDEF_SIZE,
+          s->soln->row[i] = UNDEF_SIZE,
           --i;
         }
       }
       assert(i >= -1);
       sz_t
-        cc = soln.col[(i==-1)?0:i],
-        cr = soln.row[(i==-1)?0:i];
+        cc = s->soln->col[(i==-1)?0:i],
+        cr = s->soln->row[(i==-1)?0:i];
       assert(cc != UNDEF_SIZE);
       assert(cc < s->h);
       assert(cr == UNDEF_SIZE || cr < s->w);
       if(action == BACKTRACK && cr != UNDEF_SIZE)
-        sd_update(s, &cov, RVAL(cc, cr), BACKTRACK);
+        sd_update(s, RVAL(cc, cr), BACKTRACK);
       sz_t ir = (cr == UNDEF_SIZE) ? 0 : cr + 1;
       while(ir < s->ne2) {
-        if(cov.row[RVAL(cc, ir)] == ROWCOL)break;
+        if(s->cov->row[RVAL(cc, ir)] == ROWCOL)break;
         ++ir;
       }
       if(ir < s->ne2)
         action = FORWARD,
-        m = sd_update(s, &cov, RVAL(cc, ir), FORWARD),
-        soln.row[i==-1?0:i] = ir,
+        m = sd_update(s, RVAL(cc, ir), FORWARD),
+        s->soln->row[i==-1?0:i] = ir,
         ++i;
       else {
-        ++cov.colfail[m.min_col],
+        ++s->cov->colfail[m.min_col],
         action = BACKTRACK,
-        soln.row[i==-1?0:i] = UNDEF_SIZE,
+        s->soln->row[i==-1?0:i] = UNDEF_SIZE,
         --i;
       }
     }
     if(i < 0)break;
   get_sdtable:;
     for(int j = 0; j < i; ++j) {
-      int r = RVAL(soln.col[j], soln.row[j]);
+      int r = RVAL(s->soln->col[j], s->soln->row[j]);
       assert(r < s->h);
-      sdtable[r / s->ne2] = r % s->ne2 + 1;
+      s->tmp_table[r / s->ne2] = r % s->ne2 + 1;
     }
   change_res:;
     switch(res) {
       case INVALID:
         res = COMPLETE;
-        memcpy(s->table, sdtable, sizeof(val_t) * s->ne4);
+        memcpy(s->table, s->tmp_table, sizeof(val_t) * s->ne4);
       break;
       case COMPLETE:
         res = MULTIPLE;
@@ -313,7 +341,7 @@ iterate_unknowns:;
         assert(res != MULTIPLE);
       break;
     }
-    --i, action = BACKTRACK;
+    --i,action=BACKTRACK;
   }
 endsolve:
   return res;
