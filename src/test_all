@@ -64,7 +64,8 @@ print_time() {
   input_file=$1; shift
   get_time "$program" "$input_file" 2>&1 | tr '.' ':' | sed 's/:/ /g' | (
     read -r m s ms
-    printf "%s.%s\t%s\n" "$((m * 60 + s))" "$ms" "$input_file"
+    m=${m#0} s=${s#0} ms=${ms#0}
+    printf "%02d.%02d\t%s\n" "$((m * 60 + s))" "${ms#0}" "$input_file"
   )
 }
 

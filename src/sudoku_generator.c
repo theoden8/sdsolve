@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include <time.h>
+#include <getopt.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -22,8 +23,7 @@ void seed_rng() {
 void sd_init_diagonal_boxes(sdgen_t *s) {
   assert(s->no_vals == 0);
   for(sz_t i = 0; i < s->n; ++i) {
-    sz_t topleft = i * (s->n*s->ne2 + s->n);
-    s->table[topleft] = rand() % s->ne2 + 1;
+    sd_fill_box(s, i*(s->n+1));
   }
 }
 
@@ -45,11 +45,11 @@ void print_table(sdgen_t s) {
   }putchar('\n');}
 }
 
-bool solve(sdgen_t *s) {
+RESULT solve(sdgen_t *s) {
   sd_t *solver = make_sd(s->n, s->table);
   s->status = solve_sd(solver);
   free_sd(solver);
-  return s->status != INVALID;
+  return s->status;
 }
 
 void complete(sdgen_t *s) {
@@ -60,12 +60,19 @@ void complete(sdgen_t *s) {
   free_sd(solver);
 }
 
-void set_random(sdgen_t *s) {
+void sd_fill_box(sdgen_t *s, sz_t i) {
+  sz_t arr[s->ne2];
+  ord_arr(arr,s->ne2),shuffle_arr(arr,s->ne2);
+  for(sz_t j=0;j<s->ne2;++j)s->table[(s->n*(i/s->n)+(j/s->n))*s->ne2+(s->n*(i%s->n)+(j%s->n))]=arr[j]+1,++s->no_vals;
+}
+
+bool set_random(sdgen_t *s) {
   assert(s->no_vals != s->ne4);
   sz_t idx;
   do{idx=rand()%s->ne4;}while(s->table[idx]!=0);s->table[idx]=rand()%s->ne2+1,++s->no_vals;
-  if(!solve(s)){s->table[idx]=0,--s->no_vals,set_random(s);return;}
-  /* printf("%lu\n", s->no_vals); */
+  RESULT res = solve(s);
+  if(res==INVALID){s->table[idx]=0,--s->no_vals;return set_random(s);}
+  return res==COMPLETE;
 }
 
 bool try_unset(sdgen_t *s, sz_t idx) {
@@ -96,33 +103,67 @@ static void shift_arr(sz_t *arr, sz_t idx, sz_t *len) {
 }
 
 main(int argc, char *argv[]) {
-  if(argc != 2)return EXIT_FAILURE;
+  int choice;
+  bool interactive = false;
+  int timeout = -1;
+  while (1)
+  {
+    static struct option long_options[] =
+    {
+      {"interactive", no_argument, 0, 'i'},
+      {"timeout", required_argument, 0, 't'},
+      {0,0,0,0}
+    };
+    int option_index = 0;
+    choice = getopt_long( argc, argv, "it:", long_options, &option_index);
+    if(choice == -1)
+      break;
+    switch( choice )
+    {
+      case 'i':
+        interactive = true;
+      break;
+      case 't':
+        if(!strcmp(optarg, "none")) {
+          timeout=1e9;
+          break;
+        }
+        timeout = atoi(optarg);
+        if(timeout <= 0)fprintf(stderr, "error: invalid timeout %d\n",timeout),abort();
+      break;
+      case '?':
+        /* getopt_long will have already printed an error */
+        break;
+
+      default:
+        /* Not sure how to get here... */
+        return EXIT_FAILURE;
+    }
+  }
+  if(optind!=argc-1)return EXIT_FAILURE;
   seed_rng();
-  sz_t n = atoi(argv[1]);
+  sz_t n = atoi(argv[optind]);
   sdgen_t s = sdgen_init(n);
   sd_init_diagonal_boxes(&s);
-  /* print_table(s); */
+  if(interactive)print_table(s);
   long c;
-  c=clock();
-  while(s.no_vals < s.ne4/4){
-    if(clock() - c > CLOCKS_PER_SEC * s.ne2)
-      break;
-    set_random(&s);
-    /* print_table(s); */
-  }
-  complete(&s);
-  /* print_table(s); */
-  sz_t len = s.ne4;
-  sz_t arr[s.ne4];ord_arr(arr, len);
+  /* c=clock(); */
+  /* while(s.no_vals < s.ne4/5) { */
+  /*   if(clock() - c > CLOCKS_PER_SEC * timeout)break; */
+  /*   set_random(&s),print_table(s); */
+  /* } */
+  complete(&s);if(interactive)print_table(s);
+  sz_t len=s.ne4,arr[len];ord_arr(arr, len);
+  if(timeout==-1)timeout=s.ne2;
   while(1) {
     shuffle_arr(arr, len);
     c=clock();
     sz_t prev_len = len;
     for(sz_t i=0;i<len;++i) {
       assert(s.table[arr[i]]);
-      if(clock() - c > CLOCKS_PER_SEC * s.ne2)
+      if(clock() - c > CLOCKS_PER_SEC * timeout)
         goto endgen;
-      if(try_unset(&s, arr[i]))shift_arr(arr,i--,&len)/*,print_arr(arr,len),print_table(s)*/;
+      if(try_unset(&s, arr[i])){shift_arr(arr,i--,&len)/**/;if(interactive)print_arr(arr,len),print_table(s);}
     }
     if(prev_len==len)goto endgen;
   }

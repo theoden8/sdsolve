@@ -55,12 +55,14 @@ cov:;
     cov_header = sizeof(cov_t),
     cov_row = sizeof(val_t)*s->h,
     cov_col = sizeof(val_t)*s->w,
-    cov_colfail = sizeof(sz_t) * s->w;
-  s->cov=malloc(cov_header+cov_row+cov_col+cov_colfail),assert(s->cov != NULL);
+    cov_colfail = sizeof(sz_t) * s->w,
+    cov_colchoice = sizeof(sz_t) * s->w;
+  s->cov=malloc(cov_header+cov_row+cov_col+cov_colfail+cov_colchoice),assert(s->cov != NULL);
   void *first = (void *)s->cov + cov_header;
   s->cov->row = first;
   s->cov->col = first + cov_row;
   s->cov->colfail = first + cov_row+cov_col;
+  s->cov->colchoice = first + cov_row+cov_col+cov_colfail;
 soln:;
   size_t
     soln_header = sizeof(sol_t),
@@ -154,7 +156,8 @@ static void dump_choice(sd_t *s, sz_t len1, sz_t len2) {
 static inline min_t sd_update(const sd_t *s, sz_t r, ACTION flag) {
   min_t m = {
     .min = MINUNDEF,
-    .fail_rate = UNDEF_SIZE,
+    .fail_rate = 0,
+    .choice_rate = 0,
     .min_col = 0,
   };
   const static val_t LBIT = 1 << (8 * sizeof(val_t) - 1);
@@ -177,7 +180,8 @@ static inline void sd_forward(const sd_t *s, sz_t r, sz_t c, min_t *m) {
       sz_t cc = CVAL(rr, ic);
       assert(clm < s->w);
       if(--s->cov->col[cc] < m->min)
-        m->min=s->cov->col[cc],m->fail_rate=s->cov->colfail[cc],m->min_col=cc;
+        m->min=s->cov->col[cc],m->fail_rate=s->cov->colfail[cc],
+        m->choice_rate=s->cov->colchoice[cc],m->min_col=cc;
     }
   }
 }
@@ -245,6 +249,7 @@ static inline void sd_reset(sd_t *s) {
   for(sz_t i=0;i<s->h;++i)s->cov->row[i]=ROWCOL;
   for(sz_t i=0;i<s->w;++i)s->cov->col[i]=s->ne2;
   for(sz_t i=0;i<s->w;++i)s->cov->colfail[i]=0;
+  for(sz_t i=0;i<s->w;++i)s->cov->colchoice[i]=0;
 }
 
 static inline void sd_forward_knowns(sd_t *s) {
@@ -267,42 +272,41 @@ presetup:;
   ACTION action = FORWARD;
   min_t m = {
     .min = MINUNDEF,
-    .fail_rate = UNDEF_SIZE,
+    .fail_rate = 0,
+    .choice_rate = 0,
     .min_col = 0,
   };
 iterate_unknowns:;
   int i = 0;
+  const int no_vars = s->ne4 - s->no_hints;
   while(1) {
-    while(i >= 0 && i < s->ne4 - s->no_hints) {
+    while(i >= 0 && i < no_vars) {
       /* dump_sd(s, i); */
       if(action == FORWARD) {
         s->soln->col[i] = m.min_col;
         if(m.min > 1) {
           for(sz_t c = 0; c < s->w; ++c) {
             if(s->cov->col[c] < m.min || (s->cov->col[c] == m.min && s->cov->colfail[c] > m.fail_rate)) {
-              m.min = s->cov->col[c];
-              m.fail_rate = s->cov->colfail[c];
-              m.min_col = c;
+              m.min=s->cov->col[c],
+              m.fail_rate = s->cov->colfail[c],
+              m.min_col = c,
               s->soln->col[i] = c;
               if(m.min < 2)break;
             }
           }
         } else if(m.min == MINUNDEF) {
-          ++s->cov->colfail[m.min_col],
+          s->cov->colfail[m.min_col] = s->cov->colchoice[m.min_col],
           action = BACKTRACK,
           s->soln->row[i] = UNDEF_SIZE,
           --i;
         }
       }
       assert(i >= -1);
-      sz_t
-        cc = s->soln->col[(i==-1)?0:i],
-        cr = s->soln->row[(i==-1)?0:i];
-      assert(cc != UNDEF_SIZE);
-      assert(cc < s->h);
-      assert(cr == UNDEF_SIZE || cr < s->w);
+      sz_t cc = s->soln->col[(i==-1)?0:i], cr = s->soln->row[(i==-1)?0:i];
+      assert(cc != UNDEF_SIZE),assert(cc < s->h),assert(cr == UNDEF_SIZE || cr < s->w);
       if(action == BACKTRACK && cr != UNDEF_SIZE)
-        sd_update(s, RVAL(cc, cr), BACKTRACK);
+        sd_update(s, RVAL(cc, cr), BACKTRACK),
+        s->cov->colfail[cc] = s->cov->colchoice[cc];
       sz_t ir = (cr == UNDEF_SIZE) ? 0 : cr + 1;
       while(ir < s->ne2) {
         if(s->cov->row[RVAL(cc, ir)] == ROWCOL)break;
@@ -311,10 +315,11 @@ iterate_unknowns:;
       if(ir < s->ne2)
         action = FORWARD,
         m = sd_update(s, RVAL(cc, ir), FORWARD),
+        ++s->cov->colchoice[cc],
         s->soln->row[i==-1?0:i] = ir,
         ++i;
       else {
-        ++s->cov->colfail[m.min_col],
+        s->cov->colfail[m.min_col] = s->cov->colchoice[m.min_col],
         action = BACKTRACK,
         s->soln->row[i==-1?0:i] = UNDEF_SIZE,
         --i;

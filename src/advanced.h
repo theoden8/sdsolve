@@ -12,7 +12,7 @@
 #define CIDX(R, C) (((R) << 2) | (C))
 #define CVAL(R, C) s->c[CIDX(R, C)]
 
-typedef uint32_t sz_t;
+typedef int32_t sz_t;
 typedef uint8_t val_t;
 
 struct _cov_t;
@@ -41,6 +41,7 @@ typedef enum { INVALID, COMPLETE, MULTIPLE } RESULT;
 typedef struct _cov_t {
   val_t *row, *col;
   sz_t *colfail;
+  sz_t *colchoice;
 } cov_t;
 
 typedef struct _sol_t {
@@ -53,6 +54,7 @@ typedef enum { FORWARD, BACKTRACK } ACTION;
 typedef struct _min_t {
   val_t min;
   sz_t fail_rate;
+  sz_t choice_rate;
   sz_t min_col;
 } min_t;
 

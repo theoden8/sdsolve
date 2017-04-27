@@ -17,9 +17,10 @@ void seed_rng();
 sdgen_t sdgen_init(sz_t n);
 void sdgen_free(sdgen_t s);
 void print_table(sdgen_t s);
-bool solve(sdgen_t *s);
+RESULT solve(sdgen_t *s);
 void complete(sdgen_t *s);
-void set_random(sdgen_t *s);
+void sd_fill_box(sdgen_t *s, sz_t i);
+bool set_random(sdgen_t *s);
 void unset_random(sdgen_t *s);
 bool try_unset(sdgen_t *s, sz_t idx);
 

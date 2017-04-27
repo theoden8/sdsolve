@@ -4,8 +4,8 @@ else
 CC = gcc
 endif
 
-OPTFLAGS = -g3
-# OPTFLAGS = -Ofast -DNDEBUG -fpeephole
+# OPTFLAGS = -g3
+OPTFLAGS = -Ofast -DNDEBUG -fpeephole
 CFLAGS = $(OPTFLAGS) -std=c99 -pedantic -Wno-implicit-int -Wno-unused-result -Wno-switch -Wno-pointer-arith
 
 CORES = $(shell getconf _NPROCESSORS_ONLN)
