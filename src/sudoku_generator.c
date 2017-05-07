@@ -20,13 +20,6 @@ void seed_rng() {
   srand(seed),close(fp);
 }
 
-void sd_init_diagonal_boxes(sdgen_t *s) {
-  assert(s->no_vals == 0);
-  for(sz_t i = 0; i < s->n; ++i) {
-    sd_fill_box(s, i*(s->n+1));
-  }
-}
-
 sdgen_t sdgen_init(sz_t n) {
   sdgen_t s={.n=n,.ne2=n*n,.ne4=n*n*n*n,.table=malloc(sizeof(val_t)*n*n*n*n),.status=MULTIPLE,.no_vals=0};
   assert(s.table!=NULL),memset(s.table,0x00,sizeof(val_t)*s.ne4);
@@ -34,6 +27,18 @@ sdgen_t sdgen_init(sz_t n) {
 }
 
 void sdgen_free(sdgen_t s){free(s.table);}
+
+void sd_make_empty(sdgen_t *s) {
+  for(sz_t i=0;i<s->ne4;++i)s->table[i]=0;
+  s->no_vals=0;
+}
+
+void sd_init_diagonal_boxes(sdgen_t *s) {
+  assert(s->no_vals == 0);
+  for(sz_t i = 0; i < s->n; ++i) {
+    sd_fill_box(s, i*(s->n+1));
+  }
+}
 
 int chrlen(int x){return(x<10)?1:1+chrlen(x/10);}
 void print_table(sdgen_t s) {

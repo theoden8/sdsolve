@@ -6,14 +6,14 @@
 
 // (CONSTRx(RxC))xN
 #define RIDX(C,R) ((C)*s->ne2 + (R))
-#define RVAL(C, R) s->r[RIDX(C, R)]
+#define R_SLNS(C, R) s->r[RIDX(C, R)]
 
 // (RxCxN)xCONSTR
 #define CIDX(R, C) (((R) << 2) | (C))
-#define CVAL(R, C) s->c[CIDX(R, C)]
+#define C_CNSTR(R, C) s->c[CIDX(R, C)]
 
-typedef int32_t sz_t;
-typedef uint8_t val_t;
+typedef uint_fast8_t val_t;
+typedef int_fast32_t sz_t;
 
 struct _cov_t;
 struct _sol_t;
@@ -29,7 +29,7 @@ typedef struct _sd_t {
   sz_t no_hints;
   struct _cov_t *cov;
   struct _sol_t *soln;
-  val_t *tmp_table;
+  val_t *buf;
 } sd_t;
 
 typedef enum { ROWCOL, BOXNUM, ROWNUM, COLNUM, NO_CONSTR } CONSTRAINTS;

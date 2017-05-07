@@ -1,5 +1,5 @@
 ifeq ($(shell uname), Darwin)
-CC = gcc-6
+CC = gcc-7
 else
 CC = gcc
 endif
