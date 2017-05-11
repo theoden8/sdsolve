@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <alloca.h>
 #include <stdbool.h>
+#include <math.h>
 
 #include "advanced.h"
 
@@ -12,7 +13,7 @@
 //   https://raw.githubusercontent.com/attractivechaos/plb/master/sudoku/sudoku_v1.c
 // fully written from scratch
 
-sz_t UNDEF_SIZE = -1;
+const sz_t UNDEF_SIZE = -1;
 
 sd_t *make_sd(sz_t n, val_t *table) {
 attributes:;
@@ -153,13 +154,17 @@ static void dump_choice(sd_t *s, sz_t len1, sz_t len2) {
   printf("col: "); for(sz_t i=0;i<len2;++i)printf("%d ", s->soln->col[i]);putchar('\n');
 }
 
-static inline min_t sd_update(const sd_t *s, sz_t r, ACTION flag) {
-  min_t m = {
+static inline min_t default_min(const sd_t *s) {
+  return (min_t){
     .min = MINUNDEF,
     .fail_rate = 0,
     .choice_rate = 0,
     .min_col = 0,
   };
+}
+
+static inline min_t sd_update(const sd_t *s, sz_t r, ACTION flag) {
+  min_t m = default_min(s);
   const static val_t LBIT = 1 << (8 * sizeof(val_t) - 1);
   for(sz_t c = 0; c < NO_CONSTR; ++c)s->cov->col[C_CNSTR(r, c)] ^= LBIT;
   for(sz_t c = 0; c < NO_CONSTR; ++c)
@@ -270,12 +275,7 @@ RESULT solve_sd(sd_t *s) {
 presetup:;
   sd_forward_knowns(s);
   ACTION action = FORWARD;
-  min_t m = {
-    .min = MINUNDEF,
-    .fail_rate = 0,
-    .choice_rate = 0,
-    .min_col = 0,
-  };
+  min_t m = default_min(s);
 iterate_unknowns:;
   int_fast32_t i = 0;
   const int_fast32_t no_vars = s->ne4 - s->no_hints;
@@ -288,9 +288,9 @@ iterate_unknowns:;
           for(sz_t c = 0; c < s->w; ++c) {
             if(s->cov->col[c] < m.min || (s->cov->col[c] == m.min && s->cov->colfail[c] > m.fail_rate)) {
               m.min=s->cov->col[c],
-              m.fail_rate = s->cov->colfail[c],
-              m.min_col = c,
-              s->soln->col[i] = c;
+              m.fail_rate=s->cov->colfail[c],
+              m.min_col=c,
+              s->soln->col[i]=c;
               if(m.min < 2)break;
             }
           }
@@ -314,7 +314,9 @@ iterate_unknowns:;
         ++ir;
       }
       if(ir < s->ne2) {
-        ++s->cov->colchoice[cc];
+        const sz_t diff=s->ne2-m.min;
+        s->cov->colchoice[cc] += diff*diff*(no_vars-i) / s->w + 1;
+        /* ++s->cov->colchoice[cc]; */
         action = FORWARD,
         m = sd_update(s, R_SLNS(cc, ir), FORWARD),
         s->soln->row[ii] = ir,

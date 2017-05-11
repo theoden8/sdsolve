@@ -58,7 +58,8 @@ typedef struct _min_t {
   sz_t min_col;
 } min_t;
 
-extern sz_t UNDEF_SIZE;
+extern const sz_t UNDEF_SIZE;
+static inline min_t default_min(const sd_t *s);
 
 static inline void sd_forward(const sd_t *s, sz_t r, sz_t c, min_t *m);
 static inline void sd_backtrack(const sd_t *s, sz_t r, sz_t c);
