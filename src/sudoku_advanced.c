@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "advanced.h"
+#include "algx.h"
 
 void run_sudoku() {
   sz_t n;

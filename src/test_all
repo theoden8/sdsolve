@@ -70,12 +70,8 @@ print_time() {
 }
 
 main() {
-  for f in $(find ../tests -name "*.in" | grep '[123]_' | grep -v "very_hard_1.in"); do
-    echo "$f"
-    run_test "$f"
-  done
   print_time "$adv" ../tests/3_sudoku_advanced_tests/very_hard/very_hard_1.in
-  for f in $(find ../tests -name "*.in" | grep 'seq-'); do
+  for f in $(find ../tests -name "*.in" | grep 'seq-' | grep -v 'seq-8'); do
     print_time "$adv" "$f"
   done
   no_files=$(find "$outfolder" -depth 1 | wc -l)
@@ -88,4 +84,4 @@ main() {
   }
 }
 
-main
+time ( main )

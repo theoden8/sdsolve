@@ -20,13 +20,14 @@ struct _sol_t;
 
 typedef struct _sd_t {
   // general
-  sz_t n, ne2, ne4;
+  sz_t n, ne2, ne3, ne4;
   val_t *table;
   // constraint table
   sz_t w, h, wy;
   sz_t *r, *c;
   // solver
-  sz_t no_hints;
+  sz_t no_hints, no_vars;
+  int_fast32_t i;
   struct _cov_t *cov;
   struct _sol_t *soln;
   val_t *buf;
@@ -40,8 +41,7 @@ typedef enum { INVALID, COMPLETE, MULTIPLE } RESULT;
 
 typedef struct _cov_t {
   val_t *row, *col;
-  sz_t *colfail;
-  sz_t *colchoice;
+  sz_t *colfail, *colchoice;
 } cov_t;
 
 typedef struct _sol_t {
@@ -53,17 +53,17 @@ typedef enum { FORWARD, BACKTRACK } ACTION;
 #define MINUNDEF (s->ne2 + 1)
 typedef struct _min_t {
   val_t min;
+  sz_t min_col;
   sz_t fail_rate;
   sz_t choice_rate;
-  sz_t min_col;
 } min_t;
 
 extern const sz_t UNDEF_SIZE;
-static inline min_t default_min(const sd_t *s);
 
 static inline void sd_forward(const sd_t *s, sz_t r, sz_t c, min_t *m);
 static inline void sd_backtrack(const sd_t *s, sz_t r, sz_t c);
 static inline min_t sd_update(const sd_t *s, sz_t r, ACTION flag);
+void sd_setboard(sd_t *s, val_t *table);
 RESULT solve_sd(sd_t *s);
 
 #endif

@@ -21,12 +21,13 @@ void seed_rng() {
 }
 
 sdgen_t sdgen_init(sz_t n) {
-  sdgen_t s={.n=n,.ne2=n*n,.ne4=n*n*n*n,.table=malloc(sizeof(val_t)*n*n*n*n),.status=MULTIPLE,.no_vals=0};
+  sdgen_t s={n=n,.ne2=n*n,.ne4=n*n*n*n,.solver=NULL,.table=malloc(sizeof(val_t)*n*n*n*n),
+    .status=MULTIPLE,.no_vals=0};
   assert(s.table!=NULL),memset(s.table,0x00,sizeof(val_t)*s.ne4);
   return s;
 }
 
-void sdgen_free(sdgen_t s){free(s.table);}
+void sdgen_free(sdgen_t s){if(s.solver)free_sd(s.solver);free(s.table);}
 
 void sd_make_empty(sdgen_t *s) {
   for(sz_t i=0;i<s->ne4;++i)s->table[i]=0;
@@ -35,8 +36,9 @@ void sd_make_empty(sdgen_t *s) {
 
 void sd_init_diagonal_boxes(sdgen_t *s) {
   assert(s->no_vals == 0);
+  sz_t ys[s->n];ord_arr(ys,s->n);shuffle_arr(ys,s->n);
   for(sz_t i = 0; i < s->n; ++i) {
-    sd_fill_box(s, i*(s->n+1));
+    sd_fill_box(s, ys[i]*s->n+i);
   }
 }
 
@@ -50,19 +52,22 @@ void print_table(sdgen_t s) {
   }putchar('\n');}
 }
 
+void setboard(sdgen_t *s) {
+  if(s->solver==NULL)s->solver=make_sd(s->n,s->table);
+  else sd_setboard(s->solver,s->table);
+}
+
 RESULT solve(sdgen_t *s) {
-  sd_t *solver = make_sd(s->n, s->table);
-  s->status = solve_sd(solver);
-  free_sd(solver);
+  setboard(s);
+  s->status = solve_sd(s->solver);
   return s->status;
 }
 
 void complete(sdgen_t *s) {
-  sd_t *solver = make_sd(s->n, s->table);
-  s->status = solve_sd(solver);
-  for(int i=0;i<s->ne4;++i)s->table[i]=solver->table[i];
+  setboard(s);
+  s->status = solve_sd(s->solver);
+  for(int i=0;i<s->ne4;++i)s->table[i]=s->solver->table[i];
   s->no_vals=s->ne4;
-  free_sd(solver);
 }
 
 void sd_fill_box(sdgen_t *s, sz_t i) {
@@ -172,7 +177,9 @@ main(int argc, char *argv[]) {
     }
     if(prev_len==len)goto endgen;
   }
-endgen:
+endgen:;
+  sz_t rename[s.ne2];ord_arr(rename,s.ne2),shuffle_arr(rename,s.ne2);
+  for(sz_t i=0;i<s.ne4;++i)if(s.table[i])s.table[i]=rename[s.table[i]-1]+1;
   print_table(s);
   sdgen_free(s);
 }

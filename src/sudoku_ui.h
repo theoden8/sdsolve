@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "advanced.h"
+#include "algx.h"
 
 extern const RESULT INCOMPLETE;
 

@@ -4,10 +4,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "advanced.h"
+#include "algx.h"
 
 typedef struct {
   sz_t n, ne2, ne4;
+  sd_t *solver;
   val_t *table;
   RESULT status;
   sz_t no_vals;
@@ -17,6 +18,7 @@ void seed_rng();
 sdgen_t sdgen_init(sz_t n);
 void sdgen_free(sdgen_t s);
 void print_table(sdgen_t s);
+void setboard(sdgen_t *s);
 RESULT solve(sdgen_t *s);
 void complete(sdgen_t *s);
 void sd_fill_box(sdgen_t *s, sz_t i);

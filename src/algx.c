@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <math.h>
 
-#include "advanced.h"
+#include "algx.h"
 
 // the implementation idea is taken (mainly) from
 //   https://raw.githubusercontent.com/attractivechaos/plb/master/sudoku/sudoku_v1.c
@@ -18,11 +18,9 @@ const sz_t UNDEF_SIZE = -1;
 sd_t *make_sd(sz_t n, val_t *table) {
 attributes:;
   sd_t *s=malloc(sizeof(sd_t));assert(s != NULL);
-  s->n = n;
-  s->ne2 = n*n;
-  s->ne4 = s->ne2 * s->ne2;
+  s->n=n, s->ne2=n*n, s->ne3=s->ne2*n, s->ne4=s->ne3 * n;
   s->table=malloc(sizeof(val_t)*s->ne4),assert(s->table!=NULL);
-  memcpy(s->table, table, sizeof(val_t) * s->ne4);
+  sd_setboard(s, table);
 // constraint table
   s->w = s->ne4 * NO_CONSTR;
   s->h = s->ne4 * s->ne2;
@@ -79,56 +77,6 @@ ret:;
   return s;
 }
 
-static void dump_constraint_table(const sd_t *s) {
-  for(sz_t i = 0; i < s->h; ++i) {
-    printf("[%d|%d|%d] ", i / s->ne4, i / s->ne2 % s->ne2, i % s->ne2);
-    for(sz_t k = 0; k < s->w; ++k) {
-      if(!(k % s->ne4)) {
-        printf("  ");
-      }
-      bool x = (k == C_CNSTR(i, k / s->ne4));
-      printf("%d ", x);
-    }
-    putchar('\n');
-  }
-}
-
-static void dump_ctable(const sd_t *s) {
-  puts("dump ctable");
-  sz_t i = 0;
-  for(sz_t r = 0; r < s->ne2; ++r) {
-    for(sz_t c = 0; c < s->ne2; ++c) {
-      for(sz_t v = 0; v < s->ne2; ++v) {
-        printf("[%d|%d|%d] = ", r, c, v);
-        for(sz_t cc = 0; cc < NO_CONSTR; ++cc) {
-          int l = printf("%u", C_CNSTR(i, cc));
-          for(int j=0;j<2+s->n-l;++j)putchar(' ');
-        }
-        putchar('\n'),++i;
-      }
-    }
-  }
-  fflush(stdout);
-}
-
-static void dump_rtable(const sd_t *s) {
-  puts("dump rtable");
-  sz_t i = 0;
-  for(sz_t cc = 0; cc < NO_CONSTR; ++cc) {
-    for(sz_t r = 0; r < s->ne2; ++r) {
-      for(sz_t c = 0; c < s->ne2; ++c) {
-        printf("%u: [%u|%u] = ", cc, r, c);
-        for(sz_t v = 0; v < s->ne2; ++v) {
-          int l = printf("%u", R_SLNS(i, v));
-          for(int j=0;j<2+s->n-l;++j)putchar(' ');
-        }
-        putchar('\n'),++i;
-      }
-    }
-  }
-  fflush(stdout);
-}
-
 void free_sd(sd_t *s) {
   free(s->table);
   free(s->r);
@@ -142,61 +90,46 @@ void free_sd(sd_t *s) {
   free(s);
 }
 
-static void dump_covererd(sd_t *s, sz_t len1, sz_t len2) {
-  puts("covered");
-  printf("row: "); for(sz_t i=0;i<len1;++i)printf("%hhd ", s->cov->row[i]);putchar('\n');
-  printf("col: "); for(sz_t i=0;i<len2;++i)printf("%hhd ", s->cov->col[i]);putchar('\n');
-}
-
-static void dump_choice(sd_t *s, sz_t len1, sz_t len2) {
-  puts("choice");
-  printf("row: "); for(sz_t i=0;i<len1;++i)printf("%d ", s->soln->row[i]);putchar('\n');
-  printf("col: "); for(sz_t i=0;i<len2;++i)printf("%d ", s->soln->col[i]);putchar('\n');
-}
-
 static inline min_t default_min(const sd_t *s) {
   return (min_t){
     .min = MINUNDEF,
+    .min_col = 0,
     .fail_rate = 0,
     .choice_rate = 0,
-    .min_col = 0,
   };
 }
 
 static inline min_t sd_update(const sd_t *s, sz_t r, ACTION flag) {
   min_t m = default_min(s);
-  const static val_t LBIT = 1 << (8 * sizeof(val_t) - 1);
-  for(sz_t c = 0; c < NO_CONSTR; ++c)s->cov->col[C_CNSTR(r, c)] ^= LBIT;
-  for(sz_t c = 0; c < NO_CONSTR; ++c)
-    if(flag==FORWARD)sd_forward(s,r,c,&m);else
-      sd_backtrack(s,r,c);
+  const static val_t LBIT = 1 << (CHAR_BIT * sizeof(val_t) - 1);
+  for(sz_t ic = 0; ic < NO_CONSTR; ++ic)s->cov->col[C_CNSTR(r, ic)] ^= LBIT;
+  for(sz_t ic = 0; ic < NO_CONSTR; ++ic)
+    if(flag==FORWARD)sd_forward(s,r,ic,&m);else
+      sd_backtrack(s,r,ic);
   return m;
 }
 
-static inline void sd_forward(const sd_t *s, sz_t r, sz_t c, min_t *m) {
-  assert(c < NO_CONSTR);
-  const sz_t clm = C_CNSTR(r, c);
-  assert(clm < s->w);
+static inline void sd_forward(const sd_t *s, sz_t r, sz_t ic, min_t *m) {
+  assert(ic < NO_CONSTR);
+  const sz_t c = C_CNSTR(r, ic);assert(c < s->w);
   for(sz_t ir = 0; ir < s->ne2; ++ir) {
-    sz_t rr = R_SLNS(clm, ir);
-    assert(rr < s->h);
+    sz_t rr = R_SLNS(c, ir); assert(rr < s->h);
     if(s->cov->row[rr]++ != 0)continue;
-    for(sz_t ic = 0; ic < NO_CONSTR; ++ic) {
-      sz_t cc = C_CNSTR(rr, ic);
-      assert(clm < s->w);
+    for(sz_t ic2 = 0; ic2 < NO_CONSTR; ++ic2) {
+      sz_t cc = C_CNSTR(rr, ic2); assert(cc < s->w);
       if(--s->cov->col[cc] < m->min)
-        m->min=s->cov->col[cc],m->fail_rate=s->cov->colfail[cc],
-        m->choice_rate=s->cov->colchoice[cc],m->min_col=cc;
+        m->min=s->cov->col[cc],m->min_col=cc,
+        m->fail_rate=s->cov->colfail[cc],
+        m->choice_rate=s->cov->colchoice[cc];
     }
   }
 }
 
-static inline void sd_backtrack(const sd_t *s, sz_t r, sz_t c) {
-  assert(c < NO_CONSTR);
-  sz_t clm = C_CNSTR(r, c);
-  assert(clm < s->w);
+static inline void sd_backtrack(const sd_t *s, sz_t r, sz_t ic) {
+  assert(ic < NO_CONSTR);
+  sz_t c = C_CNSTR(r, ic); assert(c < s->w);
   for(sz_t ir = 0; ir < s->ne2; ++ir) {
-    sz_t rr = R_SLNS(clm, ir);
+    sz_t rr = R_SLNS(c, ir);
     assert(rr < s->h);
     --s->cov->row[rr];
     assert(0 <= s->cov->row[rr] && s->cov->row[rr] <= NO_CONSTR);
@@ -207,42 +140,17 @@ static inline void sd_backtrack(const sd_t *s, sz_t r, sz_t c) {
   }
 }
 
-static void dump_sd(const sd_t *s, int i) {
-  static counter = 0;
-  if(!s){counter=0;return;}
-  printf("[%d] dump sudoku\n", counter);
-  val_t dump[s->ne4];
-  for(int i=0;i<s->ne4;++i)dump[i]=0;
-  memcpy(dump, s->table, sizeof(val_t) * s->ne4);
-  for(int j = 0; j < i; ++j) {
-    int r = R_SLNS(s->soln->col[j], s->soln->row[j]);
-    dump[r / s->ne2] = r % s->ne2 + 1;
-  }
-  for(sz_t i = 0; i < s->ne2; ++i) {
-    for(sz_t j = 0; j < s->ne2; ++j) {
-      printf(" %d", dump[i * s->ne2 + j]);
-    }
-    putchar('\n');
-  }
-  ++counter;
-  fflush(stdout);
-}
-
 static inline bool check_sd(sd_t *s) {
   val_t *check = alloca(s->ne2*3);
   assert(check != NULL);
   for(sz_t i = 0; i < s->ne2; ++i) {
     memset(check, 0x00, s->ne2 * 3 * sizeof(val_t));
     for(sz_t j = 0; j < s->ne2; ++j) {
-      sz_t pos[3] = { i*s->ne2 + j, j*s->ne2 + i, (i/s->n*s->n + j/s->n)*s->ne2 + (i%s->n)*s->n + j%s->n };
+      sz_t pos[3]={i*s->ne2+j, j*s->ne2+i, (i/s->n*s->n+j/s->n)*s->ne2+(i%s->n)*s->n+j%s->n};
       for(int k = 0; k < 3; ++k) {
-        sz_t p = pos[k];
-        val_t t = s->table[p];
-        if(!t)continue;
-        if(check[k*s->ne2 + t-1]) {
-          return false;
-        }
-        check[k*s->ne2 + t-1] = true;
+        val_t t=s->table[pos[k]];if(!t)continue;
+        val_t*chk=&check[k*s->ne2+t-1]; if(*chk)
+          return false ; *chk=true;
       }
     }
   }
@@ -255,6 +163,7 @@ static inline void sd_reset(sd_t *s) {
   for(sz_t i=0;i<s->w;++i)s->cov->col[i]=s->ne2;
   for(sz_t i=0;i<s->w;++i)s->cov->colfail[i]=0;
   for(sz_t i=0;i<s->w;++i)s->cov->colchoice[i]=0;
+  s->i = 0;
 }
 
 static inline void sd_forward_knowns(sd_t *s) {
@@ -265,8 +174,13 @@ static inline void sd_forward_knowns(sd_t *s) {
       sd_update(s, i * s->ne2 + t - 1, FORWARD);
       ++s->no_hints;
     }
-    s->soln->row[i] = s->soln->col[i] = UNDEF_SIZE, s->buf[i] = t;
+    s->soln->row[i]=s->soln->col[i]=UNDEF_SIZE, s->buf[i]=t;
   }
+  s->no_vars = s->ne4 - s->no_hints;
+}
+
+void sd_setboard(sd_t *s, val_t *table) {
+  memcpy(s->table, table, sizeof(val_t) * s->ne4);
 }
 
 RESULT solve_sd(sd_t *s) {
@@ -277,68 +191,64 @@ presetup:;
   ACTION action = FORWARD;
   min_t m = default_min(s);
 iterate_unknowns:;
-  int_fast32_t i = 0;
-  const int_fast32_t no_vars = s->ne4 - s->no_hints;
   while(1) {
-    while(i >= 0 && i < no_vars) {
-      /* dump_sd(s, i); */
+    while(s->i >= 0 && s->i < s->no_vars) {
       if(action == FORWARD) {
-        s->soln->col[i] = m.min_col;
+        s->soln->col[s->i] = m.min_col;
         if(m.min > 1) {
           for(sz_t c = 0; c < s->w; ++c) {
             if(s->cov->col[c] < m.min || (s->cov->col[c] == m.min && s->cov->colfail[c] > m.fail_rate)) {
-              m.min=s->cov->col[c],
+              m.min=s->cov->col[c],m.min_col=c,
               m.fail_rate=s->cov->colfail[c],
-              m.min_col=c,
-              s->soln->col[i]=c;
-              if(m.min < 2)break;
+              m.choice_rate=s->cov->colchoice[c],
+              s->soln->col[s->i]=c;if(m.min<2)break;
             }
           }
         } else if(m.min == MINUNDEF) {
-          s->cov->colfail[m.min_col] = s->cov->colchoice[m.min_col],
           action = BACKTRACK,
-          s->soln->row[i] = UNDEF_SIZE,
-          --i;
+          s->cov->colfail[m.min_col] = s->cov->colchoice[m.min_col],
+          s->soln->row[s->i] = UNDEF_SIZE,
+          --s->i;
         }
       }
-      assert(i >= -1);
-      const int_fast32_t ii = (i == -1) ? 0 : i;
+      assert(s->i >= -1);
+      const int_fast32_t ii = (s->i == -1) ? 0 : s->i;
       const sz_t cc = s->soln->col[ii], cr = s->soln->row[ii];
       assert(cc != UNDEF_SIZE),assert(cc < s->h),assert(cr == UNDEF_SIZE || cr < s->w);
       if(action == BACKTRACK && cr != UNDEF_SIZE)
-        sd_update(s, R_SLNS(cc, cr), BACKTRACK),
-        s->cov->colfail[cc] = s->cov->colchoice[cc];
+        s->cov->colfail[cc] = s->cov->colchoice[cc],
+        sd_update(s, R_SLNS(cc, cr), BACKTRACK);
       val_t ir = (cr == UNDEF_SIZE) ? 0 : cr + 1;
       while(ir < s->ne2) {
         if(s->cov->row[R_SLNS(cc, ir)] == 0)break;
         ++ir;
       }
       if(ir < s->ne2) {
-        const sz_t diff=s->ne2-m.min;
-        s->cov->colchoice[cc] += diff*diff*(no_vars-i) / s->w + 1;
-        /* ++s->cov->colchoice[cc]; */
-        action = FORWARD,
+        action = FORWARD;
+        const sz_t diff=s->ne2-s->cov->col[cc];
+        s->cov->colchoice[cc] += diff*diff*(s->no_vars-s->i) / s->w + 1,
+        /* ++s->cov->colchoice[cc], */
         m = sd_update(s, R_SLNS(cc, ir), FORWARD),
         s->soln->row[ii] = ir,
-        ++i;
+        ++s->i;
       } else {
-        s->cov->colfail[m.min_col] = s->cov->colchoice[m.min_col],
         action = BACKTRACK,
+        s->cov->colfail[cc] = s->cov->colchoice[cc],
         s->soln->row[ii] = UNDEF_SIZE,
-        --i;
+        --s->i;
       }
     }
-    if(i < 0)break;
+    if(s->i < 0)break;
   get_sdtable:;
-    for(sz_t j = 0; j < i; ++j) {
-      sz_t r = R_SLNS(s->soln->col[j], s->soln->row[j]);
-      assert(r < s->h);
-      s->buf[r / s->ne2] = r % s->ne2 + 1;
-    }
   change_res:;
     switch(res) {
       case INVALID:
         res = COMPLETE;
+        for(sz_t j = 0; j < s->i; ++j) {
+          sz_t r = R_SLNS(s->soln->col[j], s->soln->row[j]);
+          assert(r < s->h);
+          s->buf[r / s->ne2] = r % s->ne2 + 1;
+        }
         memcpy(s->table, s->buf, sizeof(val_t) * s->ne4);
       break;
       case COMPLETE:
@@ -349,7 +259,8 @@ iterate_unknowns:;
         assert(res != MULTIPLE);
       break;
     }
-    --i,action=BACKTRACK;
+    --s->i,action=BACKTRACK;if(s->i>=0)
+      s->cov->colfail[s->soln->col[s->i]] = s->cov->colchoice[s->soln->col[s->i]];
   }
 endsolve:
   return res;

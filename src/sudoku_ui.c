@@ -6,7 +6,6 @@
 
 #include <ncurses.h>
 
-#include "advanced.h"
 #include "sudoku_ui.h"
 
 // note: it is impossible to redirect the file using <

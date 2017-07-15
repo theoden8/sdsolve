@@ -1,8 +1,8 @@
-# sdsolver
+# sdsolve
 
 ## Author
 
-Researched by me.
+Researched and written by Kirill Rodriguez.
 
 ## Contents
 
