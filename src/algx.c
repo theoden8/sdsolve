@@ -15,7 +15,7 @@
 
 const sz_t UNDEF_SIZE = -1;
 
-sd_t *make_sd(sz_t n, val_t *table) {
+inline sd_t *make_sd(sz_t n, val_t *table) {
 attributes:;
   sd_t *s=malloc(sizeof(sd_t));assert(s != NULL);
   s->n=n, s->ne2=n*n, s->ne3=s->ne2*n, s->ne4=s->ne3 * n;
@@ -77,7 +77,7 @@ ret:;
   return s;
 }
 
-void free_sd(sd_t *s) {
+inline void free_sd(sd_t *s) {
   free(s->table);
   free(s->r);
   free(s->c);
@@ -179,11 +179,11 @@ static inline void sd_forward_knowns(sd_t *s) {
   s->no_vars = s->ne4 - s->no_hints;
 }
 
-void sd_setboard(sd_t *s, val_t *table) {
+inline void sd_setboard(sd_t *s, val_t *table) {
   memcpy(s->table, table, sizeof(val_t) * s->ne4);
 }
 
-RESULT solve_sd(sd_t *s) {
+inline RESULT solve_sd(sd_t *s) {
   RESULT res = INVALID;
   if(!check_sd(s))return res=INVALID;
 presetup:;
@@ -225,21 +225,20 @@ iterate_unknowns:;
       }
       if(ir < s->ne2) {
         action = FORWARD;
-        const sz_t diff=s->ne2-s->cov->col[cc];
+        const sz_t diff=(s->ne2/s->cov->col[cc]);
         s->cov->colchoice[cc] += diff*diff*(s->no_vars-s->i) / s->w + 1,
         /* ++s->cov->colchoice[cc], */
         m = sd_update(s, R_SLNS(cc, ir), FORWARD),
-        s->soln->row[ii] = ir,
+        s->soln->row[ii] = ir;
         ++s->i;
       } else {
         action = BACKTRACK,
-        s->cov->colfail[cc] = s->cov->colchoice[cc],
-        s->soln->row[ii] = UNDEF_SIZE,
+        s->cov->colfail[cc] = s->cov->colchoice[cc] + s->i,
+        s->soln->row[ii] = UNDEF_SIZE;
         --s->i;
       }
     }
-    if(s->i < 0)break;
-  get_sdtable:;
+    if(s->i<0)break;
   change_res:;
     switch(res) {
       case INVALID:
@@ -259,8 +258,7 @@ iterate_unknowns:;
         assert(res != MULTIPLE);
       break;
     }
-    --s->i,action=BACKTRACK;if(s->i>=0)
-      s->cov->colfail[s->soln->col[s->i]] = s->cov->colchoice[s->soln->col[s->i]];
+    --s->i,action=BACKTRACK;
   }
 endsolve:
   return res;

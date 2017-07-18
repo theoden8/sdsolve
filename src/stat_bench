@@ -1,0 +1,22 @@
+#!/bin/zsh
+
+show_stats() {
+  total=0.0 counter=0
+  cut -f 1 | grep -E '^[0-9]+.[0-9]{2}$' | while IFS= read -r line; do
+    # echo "$line"
+    ((total+=line));
+    ((++counter))
+  done
+  printf "total: %0.2fms\n" "${total}"
+  printf "tests: %d\n" "$counter"
+}
+
+show_stats_file() {
+  file=$1; shift
+  echo "$file stats:"
+  cat "$file" | show_stats
+}
+
+for f in benchmark*; do
+  show_stats_file "$f"
+done
