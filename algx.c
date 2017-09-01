@@ -51,11 +51,11 @@ row:;
 // solver
 cov:;
   size_t
-    cov_header = sizeof(cov_t),
-    cov_row = sizeof(val_t)*s->h,
-    cov_col = sizeof(val_t)*s->w,
-    cov_colfail = sizeof(sz_t) * s->w,
-    cov_colchoice = sizeof(sz_t) * s->w;
+    cov_header=sizeof(cov_t),
+    cov_row=sizeof(val_t)*s->h,
+    cov_col=sizeof(val_t)*s->w,
+    cov_colfail=sizeof(sz_t)*s->w,
+    cov_colchoice=sizeof(sz_t)*s->w;
   s->cov=malloc(cov_header+cov_row+cov_col+cov_colfail+cov_colchoice),assert(s->cov != NULL);
   void *first = (void *)s->cov;
   s->cov->row = (first+=cov_header);
@@ -92,32 +92,53 @@ inline void free_sd(sd_t *s) {
 
 static inline min_t default_min(const sd_t *s) {
   return (min_t){
-    .min = MINUNDEF,
-    .min_col = 0,
-    .fail_rate = 0,
-    .choice_rate = 0,
+    .min=MINUNDEF,
+    .min_col=0,
+    .fail_rate=0,
+    .choice_rate=0
   };
 }
 
-static inline min_t sd_update(const sd_t *s, sz_t r, ACTION flag) {
-  min_t m = default_min(s);
+static inline void sd_update(const sd_t *s, sz_t r, ACTION flag) {
   const static val_t LBIT = 1 << (CHAR_BIT * sizeof(val_t) - 1);
   for(sz_t ic = 0; ic < NO_CONSTR; ++ic)s->cov->col[C_CNSTR(r, ic)] ^= LBIT;
   for(sz_t ic = 0; ic < NO_CONSTR; ++ic)
-    if(flag==FORWARD)sd_forward(s,r,ic,&m);else
+    if(flag==FORWARD)sd_forward(s,r,ic);else
       sd_backtrack(s,r,ic);
-  return m;
 }
 
-static inline void sd_forward(const sd_t *s, sz_t r, sz_t ic, min_t *m) {
+static inline void sd_update_min(const sd_t *s, sz_t r, ACTION flag, min_t *m) {
+  *m = default_min(s);
+  const static val_t LBIT = 1 << (CHAR_BIT * sizeof(val_t) - 1);
+  for(sz_t ic = 0; ic < NO_CONSTR; ++ic)s->cov->col[C_CNSTR(r, ic)] ^= LBIT;
+  for(sz_t ic = 0; ic < NO_CONSTR; ++ic)
+    if(flag==FORWARD)sd_forward_min(s,r,ic,m);else
+      sd_backtrack(s,r,ic);
+}
+
+static inline void sd_forward(const sd_t *s, sz_t r, sz_t ic) {
   assert(ic < NO_CONSTR);
   const sz_t c = C_CNSTR(r, ic);assert(c < s->w);
   for(sz_t ir = 0; ir < s->ne2; ++ir) {
-    sz_t rr = R_SLNS(c, ir); assert(rr < s->h);
+    sz_t rr = R_SLNS(c, ir);assert(rr < s->h);
     if(s->cov->row[rr]++ != 0)continue;
     for(sz_t ic2 = 0; ic2 < NO_CONSTR; ++ic2) {
-      sz_t cc = C_CNSTR(rr, ic2); assert(cc < s->w);
-      if(--s->cov->col[cc] < m->min)
+      sz_t cc = C_CNSTR(rr, ic2);assert(cc < s->w);
+      --s->cov->col[cc];
+    }
+  }
+}
+
+static inline void sd_forward_min(const sd_t *s, sz_t r, sz_t ic, min_t *m) {
+  assert(ic < NO_CONSTR);
+  const sz_t c = C_CNSTR(r, ic);assert(c < s->w);
+  for(sz_t ir = 0; ir < s->ne2; ++ir) {
+    sz_t rr = R_SLNS(c, ir);assert(rr < s->h);
+    if(s->cov->row[rr]++ != 0)continue;
+    for(sz_t ic2 = 0; ic2 < NO_CONSTR; ++ic2) {
+      sz_t cc = C_CNSTR(rr, ic2);assert(cc < s->w);
+      --s->cov->col[cc];
+      if(s->cov->col[cc] < m->min || (s->cov->col[cc] == m->min && s->cov->colfail[cc] > m->fail_rate))
         m->min=s->cov->col[cc],m->min_col=cc,
         m->fail_rate=s->cov->colfail[cc],
         m->choice_rate=s->cov->colchoice[cc];
@@ -163,7 +184,7 @@ static inline void sd_reset(sd_t *s) {
   for(sz_t i=0;i<s->w;++i)s->cov->col[i]=s->ne2;
   for(sz_t i=0;i<s->w;++i)s->cov->colfail[i]=0;
   for(sz_t i=0;i<s->w;++i)s->cov->colchoice[i]=0;
-  s->i = 0;
+  s->i=0,s->action=FORWARD;
 }
 
 static inline void sd_forward_knowns(sd_t *s) {
@@ -188,12 +209,12 @@ inline RESULT solve_sd(sd_t *s) {
   if(!check_sd(s))return res=INVALID;
 presetup:;
   sd_forward_knowns(s);
-  ACTION action = FORWARD;
   min_t m = default_min(s);
+  min_t m2 = default_min(s);
 iterate_unknowns:;
   while(1) {
     while(s->i >= 0 && s->i < s->no_vars) {
-      if(action == FORWARD) {
+      if(s->action == FORWARD) {
         s->soln->col[s->i] = m.min_col;
         if(m.min > 1) {
           for(sz_t c = 0; c < s->w; ++c) {
@@ -205,36 +226,41 @@ iterate_unknowns:;
             }
           }
         } else if(m.min == MINUNDEF) {
-          action = BACKTRACK,
-          s->cov->colfail[m.min_col] = s->cov->colchoice[m.min_col],
-          s->soln->row[s->i] = UNDEF_SIZE,
+          s->action = BACKTRACK,
+          s->cov->colfail[m.min_col]=s->cov->colchoice[m.min_col],
+          s->soln->row[s->i]=UNDEF_SIZE,
           --s->i;
         }
       }
       assert(s->i >= -1);
       const int_fast32_t ii = (s->i == -1) ? 0 : s->i;
-      const sz_t cc = s->soln->col[ii], cr = s->soln->row[ii];
-      assert(cc != UNDEF_SIZE),assert(cc < s->h),assert(cr == UNDEF_SIZE || cr < s->w);
-      if(action == BACKTRACK && cr != UNDEF_SIZE)
-        s->cov->colfail[cc] = s->cov->colchoice[cc],
+      const sz_t cc = s->soln->col[ii];
+      sz_t cr = s->soln->row[ii];
+      assert(cc != UNDEF_SIZE && cc < s->h && (cr == UNDEF_SIZE || cr < s->w));
+      if(s->action == BACKTRACK && cr != UNDEF_SIZE)
+        s->cov->colfail[cc]=s->cov->colchoice[cc],
         sd_update(s, R_SLNS(cc, cr), BACKTRACK);
-      val_t ir = (cr == UNDEF_SIZE) ? 0 : cr + 1;
-      while(ir < s->ne2) {
-        if(s->cov->row[R_SLNS(cc, ir)] == 0)break;
-        ++ir;
+      cr = (cr == UNDEF_SIZE) ? 0 : cr + 1;
+      while(cr < s->ne2) {
+        if(s->cov->row[R_SLNS(cc, cr)] == 0)break;
+        ++cr;
       }
-      if(ir < s->ne2) {
-        action = FORWARD;
-        const sz_t diff=(s->ne2/s->cov->col[cc]);
-        s->cov->colchoice[cc] += diff*diff*(s->no_vars-s->i) / s->w + 1,
+      if(cr < s->ne2) {
+        s->action=FORWARD;
+        // experimental
+        sz_t diff=(s->ne2/s->cov->col[cc]);diff=diff*diff*(s->no_vars-s->i)/s->w+1;
+        s->cov->colchoice[cc] += diff,
         /* ++s->cov->colchoice[cc], */
-        m = sd_update(s, R_SLNS(cc, ir), FORWARD),
-        s->soln->row[ii] = ir;
+        m2=default_min(s);
+        sd_update_min(s, R_SLNS(cc, cr), FORWARD, &m),
+        s->soln->row[ii]=cr;
         ++s->i;
       } else {
-        action = BACKTRACK,
+        s->action=BACKTRACK,
+        // experimental
         s->cov->colfail[cc] = s->cov->colchoice[cc] + s->i,
-        s->soln->row[ii] = UNDEF_SIZE;
+        /* s->cov->colfail[cc]=s->cov->colchoice[cc], */
+        s->soln->row[ii]=UNDEF_SIZE;
         --s->i;
       }
     }
@@ -258,7 +284,7 @@ iterate_unknowns:;
         assert(res != MULTIPLE);
       break;
     }
-    --s->i,action=BACKTRACK;
+    --s->i,s->action=BACKTRACK;
   }
 endsolve:
   return res;

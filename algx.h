@@ -18,6 +18,8 @@ typedef int_fast32_t sz_t;
 struct _cov_t;
 struct _sol_t;
 
+typedef enum { FORWARD, BACKTRACK } ACTION;
+
 typedef struct _sd_t {
   // general
   sz_t n, ne2, ne3, ne4;
@@ -28,6 +30,7 @@ typedef struct _sd_t {
   // solver
   sz_t no_hints, no_vars;
   int_fast32_t i;
+  ACTION action;
   struct _cov_t *cov;
   struct _sol_t *soln;
   val_t *buf;
@@ -48,8 +51,6 @@ typedef struct _sol_t {
   sz_t *row, *col;
 } sol_t;
 
-typedef enum { FORWARD, BACKTRACK } ACTION;
-
 #define MINUNDEF (s->ne2 + 1)
 typedef struct _min_t {
   val_t min;
@@ -60,9 +61,11 @@ typedef struct _min_t {
 
 extern const sz_t UNDEF_SIZE;
 
-static inline void sd_forward(const sd_t *s, sz_t r, sz_t c, min_t *m);
+static inline void sd_update(const sd_t *s, sz_t r, ACTION flag);
+static inline void sd_update_min(const sd_t *s, sz_t r, ACTION flag, min_t *m);
+static inline void sd_forward(const sd_t *s, sz_t r, sz_t c);
+static inline void sd_forward_min(const sd_t *s, sz_t r, sz_t c, min_t *m);
 static inline void sd_backtrack(const sd_t *s, sz_t r, sz_t c);
-static inline min_t sd_update(const sd_t *s, sz_t r, ACTION flag);
 void sd_setboard(sd_t *s, val_t *table);
 RESULT solve_sd(sd_t *s);
 

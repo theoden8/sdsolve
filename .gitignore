@@ -6,3 +6,8 @@ sudoku_ui
 sudoku_generator
 llmatrix
 nohup.out
+*.txt
+res
+*.dSYM
+notworking
+
