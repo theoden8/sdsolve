@@ -10,7 +10,7 @@
 #include "sudoku_generator.h"
 
 void seed_rng() {
-  int fp = open("/dev/random", O_RDONLY);
+  int fp = open("/dev/urandom", O_RDONLY);
   if(fp == -1)abort();
   unsigned seed, pos = 0;
   while (pos < sizeof(seed)) {
