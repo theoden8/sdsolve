@@ -5,7 +5,7 @@ CC = gcc
 endif
 
 # OPTFLAGS = -g3
-OPTFLAGS = -Ofast -DNDEBUG -fpeephole -m64 -march=native
+OPTFLAGS = -Ofast -DNDEBUG -fpeephole -m64 -march=native -mtune=native -mms-bitfields -ftree-vect-loop-version -fsched-spec-load-dangerous
 CFLAGS = $(OPTFLAGS) -std=c99 -Wno-implicit-int -Wno-unused-result -Wno-switch -Wno-pointer-arith
 
 CORES = $(shell getconf _NPROCESSORS_ONLN)

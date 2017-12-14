@@ -16,7 +16,7 @@ typedef enum {
 } sudoku_res_t;
 
 typedef struct _sudoku_t {
-  char *table;
+  val_t *table;
   sz_t n, n_e2, n_e4;
   sz_t size;
   sudoku_res_t res;
@@ -40,7 +40,7 @@ sz_t get_pos_box(const sudoku_t *s, sz_t pos);
 sz_t get_pos_byte_idx(const sudoku_t *s, sz_t pos);
 sz_t get_pos_byte_idx_d(const sudoku_t *s, sz_t pos, sz_t x);
 
-#define BIT_OFFSET_X(f) (1 << (((f) - 1) % (8 * sizeof(val_t))))
+#define BIT_OFFSET_X(f) (1 << (((f) - 1) % (CHAR_BIT * sizeof(val_t))))
 
 bool is_virt_sudoku(const sudoku_t *s, sz_t pos);
 bool is_virt_sudoku_dd(const sudoku_t *s, sz_t pos, val_t t);

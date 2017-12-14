@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include <limits.h>
 
 #include "solver_sd.h"
 #include "solver_io.h"
@@ -14,9 +15,8 @@ sudoku_t *alloc_sudoku(const sz_t n) {
   s->n_e2 = n*n;
   s->n_e4 = s->n_e2*s->n_e2;
   s->size = s->n_e4 * CELL_SIZE(s);
-  s->table = malloc(s->size);
+  s->table = malloc(s->size); assert(s->table != NULL);
   memset(s->table, 0x00, s->size);
-  assert(s->table != NULL);
   s->res = INCOMPLETE;
   s->no_virts = 0;
   s->depth = 0;
@@ -118,13 +118,13 @@ sz_t get_pos_byte_idx(const sudoku_t *s, sz_t pos) {
 
 // get the offset of nth byte for given pos index
 sz_t get_pos_byte_idx_d(const sudoku_t *s, sz_t pos, sz_t x) {
-  return (get_pos_byte_idx(s, pos + 1)  - ((x - 1) / (8 * sizeof(char))) - 1);
+  return (get_pos_byte_idx(s, pos + 1)  - ((x - 1) / (CHAR_BIT * sizeof(val_t))) - 1);
 }
 
 // whether the first bit of the cell is set or not (i.e. 0 means it has a value,
 // 1 means it only has possible values)
 bool is_virt_sudoku(const sudoku_t *s, sz_t pos) {
-  return s->table[get_pos_byte_idx(s, pos)] & BIT_OFFSET_X(8 * sizeof(char));
+  return s->table[get_pos_byte_idx(s, pos)] & BIT_OFFSET_X(CHAR_BIT * sizeof(val_t));
 }
 
 // tells whether the value "t" is marked possiblef for this cell
@@ -138,7 +138,7 @@ bool is_virt_sudoku_dd(const sudoku_t *s, sz_t pos, val_t t) {
 void set_sudoku_virt(sudoku_t *s, sz_t pos) {
   assert(!is_virt_sudoku(s, pos));
   ++s->no_virts;
-  s->table[get_pos_byte_idx(s, pos)] |= BIT_OFFSET_X(8 * sizeof(char));
+  s->table[get_pos_byte_idx(s, pos)] |= BIT_OFFSET_X(CHAR_BIT * sizeof(val_t));
   assert(is_virt_sudoku(s, pos));
 }
 
@@ -154,7 +154,7 @@ void set_sudoku_virt_d(sudoku_t *s, sz_t pos, val_t t) {
 void set_sudoku_virt_all(sudoku_t *s, sz_t pos) {
   assert(!is_virt_sudoku(s, pos));
   set_sudoku_virt(s, pos);
-  for(sz_t i = s->n_e2 / (8*sizeof(char)) * (8*sizeof(char)); i < s->n_e2; ++i) {
+  for(sz_t i = s->n_e2 / (CHAR_BIT*sizeof(val_t)) * (CHAR_BIT*sizeof(val_t)); i < s->n_e2; ++i) {
     set_sudoku_virt_d(s, pos, i + 1);
   }
   memset(s->table + get_pos_byte_idx(s, pos) + 1, 0xff, CELL_SIZE(s) - 1);
@@ -168,7 +168,7 @@ void set_sudoku_virt_all(sudoku_t *s, sz_t pos) {
 void unset_sudoku_virt(sudoku_t *s, sz_t pos) {
   assert(is_virt_sudoku(s, pos));
   --s->no_virts;
-  s->table[get_pos_byte_idx(s, pos)] &= ~BIT_OFFSET_X(8 * sizeof(char));
+  s->table[get_pos_byte_idx(s, pos)] &= ~BIT_OFFSET_X(CHAR_BIT * sizeof(val_t));
   assert(!is_virt_sudoku(s, pos));
 }
 
@@ -183,7 +183,7 @@ void unset_sudoku_virt_d(sudoku_t *s, sz_t pos, val_t t) {
 // unset all possibilities and the first bit
 void unset_sudoku_virt_all(sudoku_t *s, sz_t pos) {
   assert(is_virt_sudoku(s, pos));
-  for(sz_t i = s->n_e2 / (8*sizeof(char)) * (8*sizeof(char)); i < s->n_e2; ++i) {
+  for(sz_t i = s->n_e2 / (CHAR_BIT*sizeof(val_t)) * (CHAR_BIT*sizeof(val_t)); i < s->n_e2; ++i) {
     unset_sudoku_virt_d(s, pos, i + 1);
   }
   memset(s->table + get_pos_byte_idx(s, pos) + 1, 0x00, CELL_SIZE(s) - 1);
@@ -229,13 +229,13 @@ val_t find_unique_virt_val(const sudoku_t *s, sz_t pos) {
 val_t get_sudoku_rightmost_virt(const sudoku_t *s, sz_t pos) {
   val_t right = 0;
   for(sz_t i = 0; i < CELL_SIZE(s); ++i) {
-    unsigned char mask = s->table[get_pos_byte_idx(s, pos + 1) - 1 - i];
+    val_t mask = s->table[get_pos_byte_idx(s, pos + 1) - 1 - i];
     if(i == CELL_SIZE(s) - 1) {
       mask &= 0x7f;
     }
     if(!mask)continue;
     mask &= ~(mask - 1);
-    right = 8 * sizeof(char) * i + 1;
+    right = 8 * sizeof(val_t) * i + 1;
     while(mask >>= 1)++right;
     if(right)
       return right;
@@ -243,7 +243,7 @@ val_t get_sudoku_rightmost_virt(const sudoku_t *s, sz_t pos) {
   return right;
 }
 
-static unsigned char count_bits(unsigned char x) {
+static val_t count_bits(val_t x) {
   x = x - ((x >> 1) & 0x55);
   x = (x & 0x33) + ((x >> 2) & 0x33);
   x = (x + (x >> 4)) & 0x0F;
@@ -257,7 +257,7 @@ val_t count_sudoku_virts(const sudoku_t *s, sz_t pos) {
   }
   val_t q = 0;
   for(sz_t i = 0; i < CELL_SIZE(s); ++i) {
-    unsigned char mask = s->table[get_pos_byte_idx(s, pos) + i];
+    val_t mask = s->table[get_pos_byte_idx(s, pos) + i];
     if(!i)mask&=0x7f;
     q += count_bits(mask);
   }
