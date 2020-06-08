@@ -81,12 +81,9 @@ inline void free_sd(sd_t *s) {
   free(s->table);
   free(s->r);
   free(s->c);
-  if(s->cov != NULL)
-    free(s->cov);
-  if(s->soln != NULL)
-    free(s->soln);
-  if(s->buf != NULL)
-    free(s->buf);
+  if(s->cov!=NULL)free(s->cov);
+  if(s->soln!=NULL)free(s->soln);
+  if(s->buf!=NULL)free(s->buf);
   free(s);
 }
 

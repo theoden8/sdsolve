@@ -2,16 +2,17 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
-#include "algx.h"
+#include "algx.c"
 
 void run_sudoku() {
   sz_t n;
 scan:
-  scanf(" %u", &n);
+  scanf(" %lu", &n);
   val_t vals[n*n*n*n];
   for(sz_t i = 0; i < n*n*n*n; ++i) {
-    int sc = scanf(" %hhu", &vals[i]);
+    int sc = scanf(" %"SCNu8, &vals[i]);
     assert(sc == 1);
     assert(vals[i] <= n*n);
   }
@@ -26,7 +27,7 @@ print:;
       int len = t ? 0 : 1;
       while(t){t/=10;++len;}
       for(int i=0;i<3-len;++i)putchar(' ');
-      printf("%d", s->table[y * s->ne2 + x]);
+      printf("%"SCNu8, s->table[y * s->ne2 + x]);
     }
     putchar('\n');
   }

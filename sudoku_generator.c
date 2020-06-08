@@ -6,19 +6,11 @@
 #include <getopt.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <inttypes.h>
+#include <bsd/stdlib.h>
 
 #include "sudoku_generator.h"
-
-void seed_rng() {
-  int fp = open("/dev/urandom", O_RDONLY);
-  if(fp == -1)abort();
-  unsigned seed, pos = 0;
-  while (pos < sizeof(seed)) {
-    int amt = read(fp, (char *) &seed + pos, sizeof(seed) - pos);
-    if(amt <= 0) abort(); pos += amt;
-  }
-  srand(seed),close(fp);
-}
+#include "algx.c"
 
 sdgen_t sdgen_init(sz_t n) {
   sdgen_t s={n=n,.ne2=n*n,.ne4=n*n*n*n,.solver=NULL,.table=malloc(sizeof(val_t)*n*n*n*n),
@@ -44,7 +36,7 @@ void sd_init_diagonal_boxes(sdgen_t *s) {
 
 int chrlen(int x){return(x<10)?1:1+chrlen(x/10);}
 void print_table(sdgen_t s) {
-  printf("  %d\n", s.n);
+  int n = s.n;printf("  %d\n", n);
   for(sz_t i=0;i<s.ne2;++i){for(sz_t j=0;j<s.ne2;++j){
     int x=s.table[i*s.ne2+j];
     int l=chrlen(x);for(int k=0;k<3-l;++k)putchar(' ');
@@ -79,7 +71,7 @@ void sd_fill_box(sdgen_t *s, sz_t i) {
 bool set_random(sdgen_t *s) {
   assert(s->no_vals != s->ne4);
   sz_t idx;
-  do{idx=rand()%s->ne4;}while(s->table[idx]!=0);s->table[idx]=rand()%s->ne2+1,++s->no_vals;
+  do{idx=arc4random()%s->ne4;}while(s->table[idx]!=0);s->table[idx]=arc4random()%s->ne2+1,++s->no_vals;
   RESULT res = solve(s);
   if(res==INVALID){s->table[idx]=0,--s->no_vals;return set_random(s);}
   return res==COMPLETE;
@@ -96,13 +88,13 @@ bool try_unset(sdgen_t *s, sz_t idx) {
 }
 
 static void print_arr(sz_t *arr, sz_t len){
-  printf("len==%d\n", len);
-  for(sz_t i=0;i<len;++i)printf("%d ", arr[i]); putchar('\n');
+  int len_d=len;printf("len==%d\n", len_d);
+  for(sz_t i=0;i<len;++i)printf("%lu ", arr[i]); putchar('\n');
 }
 static void ord_arr(sz_t *arr, sz_t len){for(sz_t i=0;i<len;++i)arr[i]=i;}
 static void shuffle_arr(sz_t *arr, sz_t len) {
   for(sz_t i = 1; i < len; ++i) {
-    sz_t j = rand()%i;
+    sz_t j = arc4random()%i;
     sz_t tmp;if(i!=j)tmp=arr[i],arr[i]=arr[j],arr[j]=tmp;
   }
 }
@@ -151,7 +143,6 @@ main(int argc, char *argv[]) {
     }
   }
   if(optind!=argc-1)return EXIT_FAILURE;
-  seed_rng();
   sz_t n = atoi(argv[optind]);
   sdgen_t s = sdgen_init(n);
   sd_init_diagonal_boxes(&s);
