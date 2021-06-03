@@ -1,9 +1,5 @@
 # sdsolve
 
-## Author
-
-Researched and written by Kirill Rodriguez.
-
 ## Contents
 
 * Checker
@@ -11,12 +7,13 @@ Researched and written by Kirill Rodriguez.
 * Advanced (backtrack) solver
 * Command-line interface for composing puzzles
 * Basic sudoku problem generator
+* [**Android app**](https://codeberg.org/theoden8/sudaku)
 
 ## Usage
 
 ### Compiling
 
-	make
+    make
 
 ### Running
 
@@ -158,7 +155,7 @@ $ time ( ./sudoku_advanced < input.txt )
 
 ### Checker, solvers
 
-	./test_all
+    ./test_all
 
 ### Generator
 
@@ -193,33 +190,34 @@ $ for i in {1..1000}; do ./sudoku_generator 4 > input.txt; time ( ./sudoku_advan
 ## Capabilities
 
 * Checker: none, it's useless
-* Basic solver:
 
-	- Possible values stored in bits
-	- Recursion heuristics for least possibilities on a cell
+* Basic solver:
+  
+     - Possible values stored in bits
+     - Recursion heuristics for least possibilities on a cell
 
 * Advanced solver:
-
-	- Algorithm X
-	- Arrays instead of sparse matrices
-	- Forward heuristics: minimal number of solutions for a constraint
-	- Error heuristics: maximum number of deadends for the constraint
+  
+     - Algorithm X
+     - Arrays instead of sparse matrices
+     - Forward heuristics: minimal number of solutions for a constraint
+     - Error heuristics: maximum number of deadends for the constraint
 
 * Puzzle composer:
-
-	- ncurses + advanced solver
-	- Arrows
-	- Setting/unsetting values
-	- Validation
-	- Completion (of a particular cell)
-	- Exit
+  
+     - ncurses + advanced solver
+     - Arrows
+     - Setting/unsetting values
+     - Validation
+     - Completion (of a particular cell)
+     - Exit
 
 * Puzzle generator:
-
-	- Puts random values into sudoku, solves it, and unsets random values
-	- Uses advanced solver
-	- Uses `clock(3)` to evaluate the difficulty.
+  
+     - Puts random values into sudoku, solves it, and unsets random values
+     - Uses advanced solver
+     - Uses `clock(3)` to evaluate the difficulty.
 
 ## Note
 
-CS2002-W07Practical-C2. This is not the whole submission. Researched and coded in 14 days.
+Submitted as a 2-week coursework for CS2002 at the University of St Andrews.
